@@ -1,0 +1,20 @@
+; nome del modulo
+name = YT Field
+; descrizione del modulo
+description = Adds filed for insert the YouTube videos
+; pacchetto di appartenenza (deciderà in quale sezione inserirlo nell'elenco dei moduli)
+package = Fields
+; core di Drupal compatibile
+core = 7.x
+
+; moduli che devono essere installati e attivi per il corretto funzionamento del nostro modulo
+dependencies[] = field
+dependencies[] = field_ui
+
+; path della pagina di configurazione
+configure = admin/config/media/yt_field
+
+; versione del modulo
+version = "7.x-1.x-alpha1"
+; nome del progetto
+project = "ytube"

@@ -1,0 +1,326 @@
+<?php 
+module_load_include('inc', 'yt_field', 'yt_field');
+
+/********* PAGINE AMMINISTRATIVE E FORM DI CONFIGURAZIONE *********/
+/**
+ * Implements hook_help().
+ */
+function yt_field_help ( $path , $arg ) {
+  switch ( $path ) {
+    case "admin/help#ytube" :
+    return '<p>' . t ( "Modulo che aggiunge un field per ytube" ) . '</p>' ;
+    case "admin/config/media/yt_field" :
+        return '<p>' . t ( "Configurazione yTube Field" ) . '</p>' ;
+        break;
+    }
+}
+
+/**
+ * Implements hook_menu().
+ */
+function yt_field_menu(){
+    $items = array();
+
+    $items['admin/config/media/yt_field'] = array(
+        'title' => 'YT Field',
+        'description' => 'Youtube field default configurations',
+        'page callback' => 'drupal_get_form', // funzione che gestirà la stampa della pagina
+        'page arguments' => array('yt_conf_form'), // parametri che verranno passati alla funzione di callback (in questo caso il risultato della funzione yt_form_conf)
+        'access arguments' => array('administer yt_field'), // permessi necessari per accedere alla pagina
+        'type' => MENU_NORMAL_ITEM,
+    );
+
+    return $items;
+}
+
+/**
+ * Implements hook_permission().
+ */
+function yt_field_permission() {
+  return array(
+    'administer yt_field' => array(
+      'title' => t('Administer YT Field'),
+      'restrict access' => TRUE,
+    ),
+  );
+}
+
+/**
+ * Implements hook_field_widget_settings_form().
+ */
+function yt_conf_form () {
+  $opt['yt_username']=variable_get('yt_username', ''); // username impostata di default
+  $opt['yt_width']=variable_get('yt_width', ''); // width impostato di default
+  $opt['yt_height']=variable_get('yt_height', ''); // height impostata di default
+  $opt['yt_title']=variable_get('yt_title', ''); // visualizzazione del titolo
+  $opt['yt_desc']=variable_get('yt_desc', ''); // visulizzazione della descrizione
+  $opt['yt_thumbnail']=variable_get('yt_thumbnail'); // visualizzazione della thumbnail
+
+  $form=yt_field_getSettings_form($opt);
+
+  return system_settings_form($form);
+}
+
+/********* DEFINIZIONE DEL TIPO DI FIELD "ytube" *********/
+/**
+ * Implements hook_field_info().
+ */
+function yt_field_field_info() {
+  return array(
+    // Definiamo il nostro field: nome, label, descrizione etc...
+    'field_ytube' => array(
+      'label' => t('yuoTube video'),
+      'description' => t('Select the video'),
+      'default_widget' => 'ytube_select',
+      'default_formatter' => 'ytube_player',
+    ),
+  );
+}
+
+/**
+ * Implements hook_field_validate().
+ */
+function yt_field_field_validate($entity_type, $entity, $field, $instance, $langcode, $items, &$errors) {
+  foreach ($items as $delta => $item) {
+    if (!empty($item['ytube'])) { //controlliamo che non sia vuoto
+      if (!is_string($item['ytube'])) { //controlliamo che sia una stringa
+        $errors[$field['field_name']][$langcode][$delta][] = array(
+          'error' => 'ytube_field_invalid',
+          'message' => t('Valore inserito non valido'),
+        );
+      }
+    }
+  }
+}
+
+
+/**
+ * Implements hook_field_is_empty().
+ */
+function yt_field_field_is_empty($item, $field) {
+  return empty($item['ytube']);
+}
+
+/********* DEFINIZIONE DEI WIDGET ASSOCIATI AL FIELD "ytube" *********/
+/**
+ * Implements hook_field_widget_info().
+ */
+function yt_field_field_widget_info() {
+  return array(
+  	// definiamo il widget "casella di selezione"
+    'ytube_select' => array(
+      'label' => t('ytube select'),
+      'field types' => array('field_ytube'),
+    ),
+    // definiamo il widget "inserimento url"
+    'ytube_url' => array(
+      'label' => t('ytube url'),
+      'field types' => array('field_ytube'),
+    ),
+  );
+}
+
+/**
+ * Implements hook_field_widget_form().
+ */
+function yt_field_field_widget_form(&$form, &$form_state, $field, $instance, $langcode, $items, $delta, $element) {
+  $ytCore= new ytubeCore;
+  $value = isset($items[$delta]['ytube']) ? $items[$delta]['ytube'] : '';
+
+  $widget = $element;
+  $widget['#delta'] = $delta;
+
+  switch ($instance['widget']['type']) {
+  	// qui creiamo l'array per comporre il widget di selezione
+    case 'ytube_select':
+      $username=variable_get('yt_username');
+      $ytList=$ytCore->getFieldList($username);
+      $widget += array(
+        '#suffix' => '<div class="field-select-ytube"></div>',
+        '#attributes' => array('class' => array('edit-field-ytube-select')),
+        '#type' => 'select',
+        '#options' => $ytList,
+        '#default_value' => $value
+      );
+      break;
+    // qui creiamo l'array per comporre il widget di inserimento url
+    case 'ytube_url':
+      $widget += array(
+        '#suffix' => '<div class="field-textfield-ytube"></div>',
+        '#attributes' => array('class' => array('edit-field-ytube-url')),
+        '#type' => 'textfield',
+        '#default_value' => $value
+      );
+      break;
+  }
+
+  $element['ytube'] = $widget;
+  return $element;
+}
+
+/**
+ * Implements hook_field_widget_settings_form().
+ */
+function yt_field_field_widget_settings_form ($field, $instance) {
+
+  $opt['yt_username']=variable_get('yt_username'); // username impostata di default
+  $opt['yt_width']=variable_get('yt_width'); // width impostato di default
+  $opt['yt_height']=variable_get('yt_height'); // height impostata di default
+  $opt['yt_title']=variable_get('yt_title'); // visualizzazione del titolo
+  $opt['yt_desc']=variable_get('yt_desc'); // visulizzazione della descrizione
+  
+  $opt=array_merge($opt, $instance['widget']['settings']); // qualora le opzioni di questa istanza mancassero, verranno sostituite da quelle di default
+
+  $form=yt_field_getSettings_form($opt);
+
+  return system_settings_form($form);
+}
+
+/**
+ * Implements hook_field_widget_error().
+ */
+function yt_field_field_widget_error($element, $error, $form, &$form_state) {
+  switch ($error['error']) {
+    case 'ytube_field_invalid':
+      form_error($element, $error['message']);
+      break;
+  }
+}
+
+/********* DEFINIZIONE DELE VIEW ASSOCIATE AL FIELD "ytube" *********/
+/**
+ * Implements hook_field_formatter_info().
+ */
+function yt_field_field_formatter_info() {
+  return array(
+    // definiamo il tipo di output "player"
+    'ytube_player' => array(
+      'label' => t('VideoPlayer'),
+      'field types' => array('field_ytube'),
+    ),
+    // definiamo il tipo di output "link"
+    'ytube_link' => array(
+      'label' => t('Link'),
+      'field types' => array('field_ytube'),
+    ),
+  );
+}
+
+/**
+ * Implements hook_field_formatter_view().
+ */
+function yt_field_field_formatter_view($entity_type, $entity, $field, $instance, $langcode, $items, $display) {
+  $ytCore=new ytubeCore;;
+  $element = array();
+
+  $opt['yt_username']=variable_get('yt_username');
+  $opt['yt_width']=variable_get('yt_width');
+  $opt['yt_height']=variable_get('yt_height');
+  $opt['yt_title']=variable_get('yt_title');
+  $opt['yt_desc']=variable_get('yt_desc');
+  $opt['yt_thumbnail']=variable_get('yt_thumbnail');
+  $ytOpt=array_merge($opt, $instance['widget']['settings']);
+
+  switch ($display['type']) {
+    case 'ytube_player':
+      foreach ($items as $delta=>$item){
+        $ytVal=$item['ytube'];
+        if(filter_var($ytVal, FILTER_VALIDATE_URL)) $ytVal=$ytCore->getId($ytVal);
+
+        $content=$ytCore->getContentsPlayer($ytVal, $ytOpt);
+        $ytHtml=theme('yt_player', array('content'=>$content));
+
+        $element[$delta] = array(
+          '#type' => 'html_tag',
+          '#tag' => 'div',
+          '#value' => $ytHtml,
+        );
+      }
+      break;
+
+    case 'ytube_link':
+      foreach ($items as $delta=>$item){
+        $ytVal=$item['ytube'];
+        if(filter_var($ytVal, FILTER_VALIDATE_URL)) $ytVal=$ytCore->getId($ytVal);
+
+        $content=$ytCore->getContentsLink($ytVal, $ytOpt);
+        $ytHtml=theme('yt_link', array('content'=>$content));
+
+        $element[$delta] = array(
+          '#type' => 'html_tag',
+          '#tag' => 'div',
+          '#value' => $ytHtml,
+        );
+      }
+      break;
+  }
+
+  return $element;
+}
+
+function yt_field_theme() {
+  return array(
+    'yt_player' => array(
+      'template'  => 'yt_field-player',
+      'variables' => array('content' => array())
+    ),
+    'yt_link' => array(
+      'template'  => 'yt_field-link',
+      'varaibles' => array('content' => NULL)
+    )
+  );
+}
+
+/********* FUNZIONI UTILI AL SISTEMA *********/
+/**
+ * get setting form
+ */
+function yt_field_getSettings_form($opt){
+  $form['yt_username'] = array(
+    '#type' => 'textfield',
+    '#title' => t('UserName'),
+    '#default_value' => $opt['yt_username'],
+    '#description' => t('YouTube\'s Username for this field'),
+    '#required' => TRUE,
+  );
+
+  $form['yt_width'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Width'),
+    '#field_suffix' => 'px',
+    '#description' => t('Width for player online, for this field'),
+    '#default_value' => $opt['yt_width'],
+  );
+
+  $form['yt_height'] = array(
+    '#type' => 'textfield',
+    '#title' => t('Height'),
+    '#field_suffix' => 'px',
+    '#description' => t('Height for player online, for this field'),
+    '#default_value' => $opt['yt_height'],
+  );
+
+  $form['yt_title'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Title'),
+    '#Description' => t('Show video\'s title'),
+    '#default_value' => $opt['yt_title'],
+  );
+
+  $form['yt_desc'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Description'),
+    '#Description' => t('Show video\'s description'),
+    '#default_value' => $opt['yt_desc'],
+  );
+
+  $form['yt_thumbnail'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Thumbnail'),
+    '#title' => t('Show video\'s thumbnail'),
+    '#default_value' => $opt['yt_thumbnail'],
+  );
+
+  return $form;
+}
+?>

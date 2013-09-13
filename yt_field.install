@@ -1,0 +1,17 @@
+<?php
+/**
+ * Implements hook_field_schema().
+ */
+function yt_field_field_schema($field) {
+  $columns = array(
+    'ytube' => array('type' => 'varchar', 'length' => 255, 'not null' => FALSE),
+  );
+  $indexes = array(
+    'ytube' => array('ytube'),
+  );
+  return array(
+    'columns' => $columns,
+    'indexes' => $indexes,
+  );
+}
+?>
