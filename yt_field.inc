@@ -30,7 +30,6 @@ class ytubeCore {
 
     public function getVideoInfo ($json){
         $video=new ytVideo;
-        debug($json);
         $video->setValues(array(
             'id'=>$json['media$group']['yt$videoid']['$t'],
             'title'=>$json['title']['$t'],
